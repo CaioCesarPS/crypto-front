@@ -75,10 +75,10 @@ describe('NavHeader', () => {
       mockUsePathname.mockReturnValue('/')
       const { container } = render(<NavHeader />)
 
-      const containerDiv = container.querySelector('.container')
-      expect(containerDiv).toBeInTheDocument()
-      expect(containerDiv).toHaveClass('flex')
-      expect(containerDiv).toHaveClass('items-center')
+      const headerDiv = container.querySelector('header > div')
+      expect(headerDiv).toBeInTheDocument()
+      expect(headerDiv).toHaveClass('flex')
+      expect(headerDiv).toHaveClass('items-center')
     })
   })
 
@@ -234,20 +234,21 @@ describe('NavHeader', () => {
       const { container } = render(<NavHeader />)
 
       const themeToggle = screen.getByTestId('theme-toggle')
-      const containerDiv = container.querySelector('.container')
-      const lastChild = containerDiv?.lastElementChild
+      const headerDiv = container.querySelector('header > div')
+      const lastChild = headerDiv?.lastElementChild
 
       expect(lastChild).toContainElement(themeToggle)
     })
   })
 
   describe('Responsive Design', () => {
-    it('should have responsive container', () => {
+    it('should have responsive layout', () => {
       mockUsePathname.mockReturnValue('/')
       const { container } = render(<NavHeader />)
 
-      const containerDiv = container.querySelector('.container')
-      expect(containerDiv).toHaveClass('container')
+      const headerDiv = container.querySelector('header > div')
+      expect(headerDiv).toHaveClass('flex')
+      expect(headerDiv).toHaveClass('justify-between')
     })
 
     it('should maintain proper spacing between elements', () => {
@@ -356,8 +357,8 @@ describe('NavHeader', () => {
       mockUsePathname.mockReturnValue('/')
       const { container } = render(<NavHeader />)
 
-      const containerDiv = container.querySelector('.container')
-      expect(containerDiv).toHaveClass('h-14')
+      const headerDiv = container.querySelector('header > div')
+      expect(headerDiv).toHaveClass('h-14')
     })
   })
 
