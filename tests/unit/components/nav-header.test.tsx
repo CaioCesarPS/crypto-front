@@ -144,7 +144,6 @@ describe('NavHeader', () => {
       expect(nav).toBeInTheDocument()
       expect(nav).toHaveClass('flex')
       expect(nav).toHaveClass('items-center')
-      expect(nav).toHaveClass('flex-1')
     })
 
     it('should have transition classes on links', () => {

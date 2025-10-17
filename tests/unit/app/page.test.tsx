@@ -231,14 +231,6 @@ describe('Home Page', () => {
       expect(screen.getByText('Cardano')).toBeInTheDocument()
     })
 
-    it('should fetch favorites on mount', async () => {
-      render(<Home />)
-
-      await waitFor(() => {
-        expect(screen.getByText('View Favorites (1)')).toBeInTheDocument()
-      })
-    })
-
     it('should mark favorited assets correctly', async () => {
       render(<Home />)
 
@@ -646,8 +638,9 @@ describe('Home Page', () => {
         expect(toast.success).toHaveBeenCalledWith('Added to favorites')
       })
 
+      // Verify the button state changed to "Remove"
       await waitFor(() => {
-        expect(screen.getByText('View Favorites (1)')).toBeInTheDocument()
+        expect(favoriteBtn).toHaveTextContent('Remove')
       })
     })
 
@@ -679,7 +672,7 @@ describe('Home Page', () => {
       render(<Home />)
 
       await waitFor(() => {
-        expect(screen.getByText('View Favorites (1)')).toBeInTheDocument()
+        expect(screen.getByTestId('favorite-btn-bitcoin')).toBeInTheDocument()
       })
 
       const favoriteBtn = screen.getByTestId('favorite-btn-bitcoin')
@@ -689,8 +682,9 @@ describe('Home Page', () => {
         expect(toast.success).toHaveBeenCalledWith('Removed from favorites')
       })
 
+      // Verify the button state changed to "Add"
       await waitFor(() => {
-        expect(screen.getByText('View Favorites (0)')).toBeInTheDocument()
+        expect(favoriteBtn).toHaveTextContent('Add')
       })
     })
 
@@ -965,17 +959,6 @@ describe('Home Page', () => {
           screen.getByText('Showing 1 cryptocurrencies')
         ).toBeInTheDocument()
       })
-    })
-
-    it('should have link to favorites page', async () => {
-      render(<Home />)
-
-      await waitFor(() => {
-        expect(screen.getByText(/View Favorites/)).toBeInTheDocument()
-      })
-
-      const link = screen.getByRole('link', { name: /View Favorites/ })
-      expect(link).toHaveAttribute('href', '/favorites')
     })
   })
 

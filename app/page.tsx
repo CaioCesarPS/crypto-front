@@ -1,7 +1,6 @@
 'use client'
 
 import { useState, useEffect, useMemo, useCallback } from 'react'
-import Link from 'next/link'
 import { NavHeader } from '@/components/nav-header'
 import { AssetCard } from '@/components/asset-card'
 import { AssetCardSkeleton } from '@/components/asset-card-skeleton'
@@ -251,17 +250,10 @@ export default function Home() {
           <p className="text-muted-foreground">
             Top cryptocurrencies by market cap
           </p>
-          <div className="mt-4">
-            <Link href="/favorites">
-              <Button variant="outline">
-                View Favorites ({favorites.length})
-              </Button>
-            </Link>
-          </div>
         </div>
 
         {/* Search and Filter */}
-        <div className="mb-6 space-y-4">
+        <div className="mb-6 flex flex-col sm:flex-row gap-4 items-start sm:items-end">
           <SearchBar
             value={searchTerm}
             onChange={setSearchTerm}
