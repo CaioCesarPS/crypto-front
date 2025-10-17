@@ -1,17 +1,8 @@
 import { NextResponse } from 'next/server'
 import type { CryptoAsset } from '@/lib/types'
+import { assetsCache } from '@/lib/cache'
 
 const COINGECKO_API_URL = 'https://api.coingecko.com/api/v3/coins/markets'
-
-// Enhanced cache to support pagination
-// Key format: "page-perPage" (e.g., "1-20", "2-20")
-const cache = new Map<string, { data: CryptoAsset[]; timestamp: number }>()
-const CACHE_DURATION = 60 * 1000 // 60 seconds
-
-// Export for testing purposes
-export function clearCache() {
-  cache.clear()
-}
 
 export async function GET(request: Request) {
   try {
@@ -33,13 +24,13 @@ export async function GET(request: Request) {
     const cacheKey = `${page}-${perPage}`
 
     // Check if cache is valid
-    const cached = cache.get(cacheKey)
-    if (cached && Date.now() - cached.timestamp < CACHE_DURATION) {
+    const cached = assetsCache.get(cacheKey)
+    if (assetsCache.isValid(cached)) {
       return NextResponse.json({
-        assets: cached.data,
+        assets: cached!.data,
         page,
         perPage,
-        hasMore: cached.data.length === perPage,
+        hasMore: cached!.data.length === perPage,
       })
     }
 
@@ -56,15 +47,15 @@ export async function GET(request: Request) {
     const data: CryptoAsset[] = await response.json()
 
     // Update cache
-    cache.set(cacheKey, {
+    assetsCache.set(cacheKey, {
       data,
       timestamp: Date.now(),
     })
 
     // Clean old cache entries (keep last 10 pages)
-    if (cache.size > 10) {
-      const firstKey = cache.keys().next().value
-      if (firstKey) cache.delete(firstKey)
+    if (assetsCache.size > 10) {
+      const firstKey = assetsCache.keys().next().value
+      if (firstKey) assetsCache.delete(firstKey)
     }
 
     return NextResponse.json({

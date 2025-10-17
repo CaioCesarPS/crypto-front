@@ -3,7 +3,8 @@
  * Tests pagination, caching, error handling, and data validation
  */
 
-import { GET, clearCache } from '@/app/api/assets/route'
+import { GET } from '@/app/api/assets/route'
+import { assetsCache } from '@/lib/cache'
 import { createTestRequest } from '../../helpers/request-helpers'
 
 // Mock fetch for CoinGecko API
@@ -37,7 +38,7 @@ describe('/api/assets Integration Tests', () => {
     jest.clearAllMocks()
     ;(global.fetch as jest.Mock).mockClear()
     // Clear the cache to ensure tests are isolated
-    clearCache()
+    assetsCache.clear()
   })
 
   describe('Successful Requests', () => {
