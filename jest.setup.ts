@@ -10,6 +10,26 @@ Object.assign(global, {
   ReadableStream,
 })
 
+// Mock NextResponse for API route tests
+jest.mock('next/server', () => {
+  const actual = jest.requireActual('next/server')
+  return {
+    ...actual,
+    NextResponse: {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      json: (body: any, init?: ResponseInit) => {
+        return new Response(JSON.stringify(body), {
+          ...init,
+          headers: {
+            'Content-Type': 'application/json',
+            ...(init?.headers || {}),
+          },
+        })
+      },
+    },
+  }
+})
+
 // Mock Next.js router
 jest.mock('next/navigation', () => ({
   useRouter: () => ({

@@ -37,7 +37,7 @@ export default function Home() {
   // Pagination state
   const [page, setPage] = useState(1)
   const [hasMore, setHasMore] = useState(true)
-  const perPage = 20
+  const perPage = 10
 
   // Search and filter state
   const [searchTerm, setSearchTerm] = useState('')

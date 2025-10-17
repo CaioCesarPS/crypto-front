@@ -4,8 +4,8 @@
  */
 
 import { GET, POST, DELETE } from '@/app/api/favorites/route'
-import { NextRequest } from 'next/server'
 import { supabase } from '@/lib/supabase'
+import { createTestRequest } from '../../helpers/request-helpers'
 
 // Mock Supabase client
 jest.mock('@/lib/supabase', () => ({
@@ -150,7 +150,7 @@ describe('/api/favorites Integration Tests', () => {
         single: mockSingle,
       })
 
-      const request = new NextRequest('http://localhost:3000/api/favorites', {
+      const request = createTestRequest('http://localhost:3000/api/favorites', {
         method: 'POST',
         body: JSON.stringify({ asset_id: 'cardano' }),
       })
@@ -164,7 +164,7 @@ describe('/api/favorites Integration Tests', () => {
     })
 
     it('should return 400 when asset_id is missing', async () => {
-      const request = new NextRequest('http://localhost:3000/api/favorites', {
+      const request = createTestRequest('http://localhost:3000/api/favorites', {
         method: 'POST',
         body: JSON.stringify({}),
       })
@@ -196,7 +196,7 @@ describe('/api/favorites Integration Tests', () => {
         single: mockSingle,
       })
 
-      const request = new NextRequest('http://localhost:3000/api/favorites', {
+      const request = createTestRequest('http://localhost:3000/api/favorites', {
         method: 'POST',
         body: JSON.stringify({ asset_id: 'bitcoin' }),
       })
@@ -228,7 +228,7 @@ describe('/api/favorites Integration Tests', () => {
         single: mockSingle,
       })
 
-      const request = new NextRequest('http://localhost:3000/api/favorites', {
+      const request = createTestRequest('http://localhost:3000/api/favorites', {
         method: 'POST',
         body: JSON.stringify({ asset_id: 'ethereum' }),
       })
@@ -241,7 +241,7 @@ describe('/api/favorites Integration Tests', () => {
     })
 
     it('should handle malformed JSON request body', async () => {
-      const request = new NextRequest('http://localhost:3000/api/favorites', {
+      const request = createTestRequest('http://localhost:3000/api/favorites', {
         method: 'POST',
         body: 'invalid json',
       })
@@ -270,7 +270,7 @@ describe('/api/favorites Integration Tests', () => {
         eq: mockEq,
       })
 
-      const request = new NextRequest(
+      const request = createTestRequest(
         'http://localhost:3000/api/favorites?asset_id=bitcoin',
         { method: 'DELETE' }
       )
@@ -285,7 +285,7 @@ describe('/api/favorites Integration Tests', () => {
     })
 
     it('should return 400 when asset_id is missing', async () => {
-      const request = new NextRequest('http://localhost:3000/api/favorites', {
+      const request = createTestRequest('http://localhost:3000/api/favorites', {
         method: 'DELETE',
       })
 
@@ -311,7 +311,7 @@ describe('/api/favorites Integration Tests', () => {
         eq: mockEq,
       })
 
-      const request = new NextRequest(
+      const request = createTestRequest(
         'http://localhost:3000/api/favorites?asset_id=ethereum',
         { method: 'DELETE' }
       )
@@ -338,7 +338,7 @@ describe('/api/favorites Integration Tests', () => {
         eq: mockEq,
       })
 
-      const request = new NextRequest(
+      const request = createTestRequest(
         'http://localhost:3000/api/favorites?asset_id=nonexistent',
         { method: 'DELETE' }
       )
@@ -354,7 +354,7 @@ describe('/api/favorites Integration Tests', () => {
 
   describe('Data Validation', () => {
     it('should validate asset_id format in POST', async () => {
-      const request = new NextRequest('http://localhost:3000/api/favorites', {
+      const request = createTestRequest('http://localhost:3000/api/favorites', {
         method: 'POST',
         body: JSON.stringify({ asset_id: '' }),
       })
@@ -381,7 +381,7 @@ describe('/api/favorites Integration Tests', () => {
         eq: mockEq,
       })
 
-      const request = new NextRequest(
+      const request = createTestRequest(
         'http://localhost:3000/api/favorites?asset_id=asset-with-dashes',
         { method: 'DELETE' }
       )
@@ -415,7 +415,7 @@ describe('/api/favorites Integration Tests', () => {
         single: mockSingle,
       })
 
-      const postRequest = new NextRequest(
+      const postRequest = createTestRequest(
         'http://localhost:3000/api/favorites',
         {
           method: 'POST',
@@ -460,7 +460,7 @@ describe('/api/favorites Integration Tests', () => {
         eq: mockEq,
       })
 
-      const deleteRequest = new NextRequest(
+      const deleteRequest = createTestRequest(
         'http://localhost:3000/api/favorites?asset_id=bitcoin',
         { method: 'DELETE' }
       )

@@ -3,8 +3,8 @@
  * Tests pagination, caching, error handling, and data validation
  */
 
-import { GET } from '@/app/api/assets/route'
-import { NextRequest } from 'next/server'
+import { GET, clearCache } from '@/app/api/assets/route'
+import { createTestRequest } from '../../helpers/request-helpers'
 
 // Mock fetch for CoinGecko API
 global.fetch = jest.fn()
@@ -36,6 +36,8 @@ describe('/api/assets Integration Tests', () => {
   beforeEach(() => {
     jest.clearAllMocks()
     ;(global.fetch as jest.Mock).mockClear()
+    // Clear the cache to ensure tests are isolated
+    clearCache()
   })
 
   describe('Successful Requests', () => {
@@ -45,14 +47,14 @@ describe('/api/assets Integration Tests', () => {
         json: async () => mockAssets,
       })
 
-      const request = new NextRequest('http://localhost:3000/api/assets')
+      const request = createTestRequest('http://localhost:3000/api/assets')
       const response = await GET(request)
       const data = await response.json()
 
       expect(response.status).toBe(200)
       expect(data.assets).toEqual(mockAssets)
       expect(data.page).toBe(1)
-      expect(data.perPage).toBe(20)
+      expect(data.perPage).toBe(10)
       expect(data.hasMore).toBe(false) // Less than perPage
     })
 
@@ -62,7 +64,9 @@ describe('/api/assets Integration Tests', () => {
         json: async () => mockAssets,
       })
 
-      const request = new NextRequest('http://localhost:3000/api/assets?page=2')
+      const request = createTestRequest(
+        'http://localhost:3000/api/assets?page=2'
+      )
       const response = await GET(request)
       const data = await response.json()
 
@@ -79,7 +83,7 @@ describe('/api/assets Integration Tests', () => {
         json: async () => mockAssets,
       })
 
-      const request = new NextRequest(
+      const request = createTestRequest(
         'http://localhost:3000/api/assets?per_page=50'
       )
       const response = await GET(request)
@@ -98,7 +102,7 @@ describe('/api/assets Integration Tests', () => {
         json: async () => mockAssets,
       })
 
-      const request = new NextRequest(
+      const request = createTestRequest(
         'http://localhost:3000/api/assets?page=3&per_page=25'
       )
       const response = await GET(request)
@@ -109,20 +113,20 @@ describe('/api/assets Integration Tests', () => {
     })
 
     it('should indicate hasMore when results equal perPage', async () => {
-      const fullPage = Array(20).fill(mockAssets[0])
+      const fullPage = Array(10).fill(mockAssets[0])
       ;(global.fetch as jest.Mock).mockResolvedValueOnce({
         ok: true,
         json: async () => fullPage,
       })
 
-      const request = new NextRequest(
-        'http://localhost:3000/api/assets?per_page=20'
+      const request = createTestRequest(
+        'http://localhost:3000/api/assets?per_page=10'
       )
       const response = await GET(request)
       const data = await response.json()
 
       expect(data.hasMore).toBe(true)
-      expect(data.assets.length).toBe(20)
+      expect(data.assets.length).toBe(10)
     })
   })
 
@@ -133,7 +137,7 @@ describe('/api/assets Integration Tests', () => {
         json: async () => mockAssets,
       })
 
-      const request = new NextRequest(
+      const request = createTestRequest(
         'http://localhost:3000/api/assets?page=-1'
       )
       const response = await GET(request)
@@ -149,7 +153,9 @@ describe('/api/assets Integration Tests', () => {
         json: async () => mockAssets,
       })
 
-      const request = new NextRequest('http://localhost:3000/api/assets?page=0')
+      const request = createTestRequest(
+        'http://localhost:3000/api/assets?page=0'
+      )
       const response = await GET(request)
       const data = await response.json()
 
@@ -163,7 +169,7 @@ describe('/api/assets Integration Tests', () => {
         json: async () => mockAssets,
       })
 
-      const request = new NextRequest(
+      const request = createTestRequest(
         'http://localhost:3000/api/assets?per_page=500'
       )
       const response = await GET(request)
@@ -179,7 +185,7 @@ describe('/api/assets Integration Tests', () => {
         json: async () => mockAssets,
       })
 
-      const request = new NextRequest(
+      const request = createTestRequest(
         'http://localhost:3000/api/assets?per_page=-10'
       )
       const response = await GET(request)
@@ -195,7 +201,7 @@ describe('/api/assets Integration Tests', () => {
         json: async () => mockAssets,
       })
 
-      const request = new NextRequest(
+      const request = createTestRequest(
         'http://localhost:3000/api/assets?page=invalid'
       )
       const response = await GET(request)
@@ -211,14 +217,14 @@ describe('/api/assets Integration Tests', () => {
         json: async () => mockAssets,
       })
 
-      const request = new NextRequest(
+      const request = createTestRequest(
         'http://localhost:3000/api/assets?per_page=abc'
       )
       const response = await GET(request)
       const data = await response.json()
 
       // Should default to 20
-      expect(data.perPage).toBe(20)
+      expect(data.perPage).toBe(10)
     })
   })
 
@@ -229,7 +235,7 @@ describe('/api/assets Integration Tests', () => {
         status: 500,
       })
 
-      const request = new NextRequest('http://localhost:3000/api/assets')
+      const request = createTestRequest('http://localhost:3000/api/assets')
       const response = await GET(request)
       const data = await response.json()
 
@@ -242,7 +248,7 @@ describe('/api/assets Integration Tests', () => {
         new Error('Network error')
       )
 
-      const request = new NextRequest('http://localhost:3000/api/assets')
+      const request = createTestRequest('http://localhost:3000/api/assets')
       const response = await GET(request)
       const data = await response.json()
 
@@ -258,7 +264,7 @@ describe('/api/assets Integration Tests', () => {
         },
       })
 
-      const request = new NextRequest('http://localhost:3000/api/assets')
+      const request = createTestRequest('http://localhost:3000/api/assets')
       const response = await GET(request)
       const data = await response.json()
 
@@ -274,7 +280,7 @@ describe('/api/assets Integration Tests', () => {
         json: async () => mockAssets,
       })
 
-      const request = new NextRequest(
+      const request = createTestRequest(
         'http://localhost:3000/api/assets?page=2&per_page=30'
       )
       await GET(request)
@@ -291,7 +297,7 @@ describe('/api/assets Integration Tests', () => {
         json: async () => mockAssets,
       })
 
-      const request = new NextRequest('http://localhost:3000/api/assets')
+      const request = createTestRequest('http://localhost:3000/api/assets')
       await GET(request)
 
       expect(global.fetch).toHaveBeenCalledWith(
@@ -306,7 +312,7 @@ describe('/api/assets Integration Tests', () => {
         json: async () => mockAssets,
       })
 
-      const request = new NextRequest('http://localhost:3000/api/assets')
+      const request = createTestRequest('http://localhost:3000/api/assets')
       await GET(request)
 
       expect(global.fetch).toHaveBeenCalledWith(
@@ -321,7 +327,7 @@ describe('/api/assets Integration Tests', () => {
         json: async () => mockAssets,
       })
 
-      const request = new NextRequest('http://localhost:3000/api/assets')
+      const request = createTestRequest('http://localhost:3000/api/assets')
       await GET(request)
 
       expect(global.fetch).toHaveBeenCalledWith(
@@ -338,7 +344,7 @@ describe('/api/assets Integration Tests', () => {
         json: async () => mockAssets,
       })
 
-      const request = new NextRequest('http://localhost:3000/api/assets')
+      const request = createTestRequest('http://localhost:3000/api/assets')
       const response = await GET(request)
       const data = await response.json()
 
@@ -354,7 +360,7 @@ describe('/api/assets Integration Tests', () => {
         json: async () => mockAssets,
       })
 
-      const request = new NextRequest('http://localhost:3000/api/assets')
+      const request = createTestRequest('http://localhost:3000/api/assets')
       const response = await GET(request)
       const data = await response.json()
 
@@ -368,7 +374,7 @@ describe('/api/assets Integration Tests', () => {
         json: async () => mockAssets,
       })
 
-      const request = new NextRequest('http://localhost:3000/api/assets')
+      const request = createTestRequest('http://localhost:3000/api/assets')
       const response = await GET(request)
       const data = await response.json()
 
@@ -389,7 +395,7 @@ describe('/api/assets Integration Tests', () => {
         json: async () => [],
       })
 
-      const request = new NextRequest('http://localhost:3000/api/assets')
+      const request = createTestRequest('http://localhost:3000/api/assets')
       const response = await GET(request)
       const data = await response.json()
 
@@ -404,7 +410,7 @@ describe('/api/assets Integration Tests', () => {
         json: async () => [],
       })
 
-      const request = new NextRequest(
+      const request = createTestRequest(
         'http://localhost:3000/api/assets?page=9999'
       )
       const response = await GET(request)

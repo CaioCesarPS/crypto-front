@@ -41,6 +41,9 @@ export default defineConfig({
 
     /* Screenshot on failure */
     screenshot: 'only-on-failure',
+
+    /* Run browsers in headless mode */
+    headless: true,
   },
 
   /* Configure projects for major browsers */

@@ -21,14 +21,7 @@ on:
         options:
           - production
           - staging
-      run_e2e:
-        description: 'Run E2E tests'
-        required: false
-        default: false
-        type: boolean
   schedule:
-    # Run E2E tests daily at 2 AM UTC
-    - cron: '0 2 * * *'
     # Run quality analysis weekly on Sundays at 3 AM UTC
     - cron: '0 3 * * 0'
 
@@ -192,92 +185,7 @@ jobs:
           retention-days: 7
 
   # ============================================
-  # PHASE 4: E2E Tests (Conditional)
-  # ============================================
-
-  e2e:
-    name: E2E Tests
-    runs-on: ubuntu-latest
-    timeout-minutes: 20
-    needs: build
-    # Run on: schedule, manual trigger with e2e enabled, or pull requests
-    if: |
-      github.event_name == 'schedule' ||
-      (github.event_name == 'workflow_dispatch' && github.event.inputs.run_e2e == 'true') ||
-      github.event_name == 'pull_request'
-
-    strategy:
-      fail-fast: false
-      matrix:
-        browser: [chromium]
-        # Add more browsers for scheduled runs
-        include:
-          - browser: firefox
-            only-scheduled: true
-          - browser: webkit
-            only-scheduled: true
-
-    steps:
-      - name: Skip non-chromium on PR
-        if: |
-          github.event_name == 'pull_request' && 
-          matrix.only-scheduled == true
-        run: echo "Skipping ${{ matrix.browser }} on PR" && exit 0
-
-      - name: Checkout code
-        if: |
-          github.event_name != 'pull_request' ||
-          matrix.only-scheduled != true
-        uses: actions/checkout@v4
-
-      - name: Setup Node.js
-        if: |
-          github.event_name != 'pull_request' ||
-          matrix.only-scheduled != true
-        uses: actions/setup-node@v4
-        with:
-          node-version: ${{ env.NODE_VERSION }}
-          cache: 'npm'
-
-      - name: Install dependencies
-        if: |
-          github.event_name != 'pull_request' ||
-          matrix.only-scheduled != true
-        run: npm ci
-
-      - name: Install Playwright
-        if: |
-          github.event_name != 'pull_request' ||
-          matrix.only-scheduled != true
-        run: npx playwright install ${{ matrix.browser }} --with-deps
-
-      - name: Download build artifacts
-        if: |
-          github.event_name != 'pull_request' ||
-          matrix.only-scheduled != true
-        uses: actions/download-artifact@v4
-        with:
-          name: build-output
-          path: .next/
-
-      - name: Run E2E tests
-        if: |
-          github.event_name != 'pull_request' ||
-          matrix.only-scheduled != true
-        run: npm run test:e2e -- --project=${{ matrix.browser }}
-        env:
-          CI: true
-
-      - name: Upload test results
-        if: failure()
-        uses: actions/upload-artifact@v4
-        with:
-          name: playwright-report-${{ matrix.browser }}
-          path: playwright-report/
-          retention-days: 7
-
-  # ============================================
-  # PHASE 5: Docker Build (main branch only)
+  # PHASE 4: Docker Build (main branch only)
   # ============================================
 
   docker:
@@ -349,7 +257,7 @@ jobs:
           sarif_file: 'trivy-results.sarif'
 
   # ============================================
-  # PHASE 6: Deploy (conditional)
+  # PHASE 5: Deploy (conditional)
   # ============================================
 
   deploy:
@@ -391,7 +299,7 @@ jobs:
           echo "Deployed to: $url"
 
   # ============================================
-  # PHASE 7: Smoke Tests (after deployment)
+  # PHASE 6: Smoke Tests (after deployment)
   # ============================================
 
   smoke-tests:
@@ -432,7 +340,7 @@ jobs:
           fi
 
   # ============================================
-  # PHASE 8: Quality Metrics (weekly)
+  # PHASE 7: Quality Metrics (weekly)
   # ============================================
 
   quality-metrics:

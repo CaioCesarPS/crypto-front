@@ -8,15 +8,26 @@ const COINGECKO_API_URL = 'https://api.coingecko.com/api/v3/coins/markets'
 const cache = new Map<string, { data: CryptoAsset[]; timestamp: number }>()
 const CACHE_DURATION = 60 * 1000 // 60 seconds
 
+// Export for testing purposes
+export function clearCache() {
+  cache.clear()
+}
+
 export async function GET(request: Request) {
   try {
     // Parse query parameters
     const { searchParams } = new URL(request.url)
-    const page = Math.max(1, parseInt(searchParams.get('page') || '1', 10))
-    const perPage = Math.min(
-      250,
-      Math.max(1, parseInt(searchParams.get('per_page') || '20', 10))
-    )
+    const pageParam = searchParams.get('page') || '1'
+    const perPageParam = searchParams.get('per_page') || '10'
+
+    // Parse and validate pagination parameters
+    const parsedPage = parseInt(pageParam, 10)
+    const parsedPerPage = parseInt(perPageParam, 10)
+
+    const page = Number.isNaN(parsedPage) ? 1 : Math.max(1, parsedPage)
+    const perPage = Number.isNaN(parsedPerPage)
+      ? 10
+      : Math.min(250, Math.max(1, parsedPerPage))
 
     // Create cache key
     const cacheKey = `${page}-${perPage}`
