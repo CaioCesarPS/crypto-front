@@ -34,6 +34,9 @@ const config: Config = {
     '!components/ui/**',
   ],
 
+  // Coverage reporters
+  coverageReporters: ['text', 'lcov', 'json-summary', 'html'],
+
   // Coverage thresholds
   coverageThreshold: {
     global: {

@@ -102,12 +102,20 @@ jobs:
         run: npm run test:unit
 
       - name: Generate coverage summary
+        if: always()
         run: |
           echo "## 📊 Test Coverage Summary" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
-          echo '```json' >> $GITHUB_STEP_SUMMARY
-          cat coverage/coverage-summary.json >> $GITHUB_STEP_SUMMARY
-          echo '```' >> $GITHUB_STEP_SUMMARY
+
+          if [ -f "coverage/coverage-summary.json" ]; then
+            echo '```json' >> $GITHUB_STEP_SUMMARY
+            cat coverage/coverage-summary.json >> $GITHUB_STEP_SUMMARY
+            echo '```' >> $GITHUB_STEP_SUMMARY
+          else
+            echo "⚠️ Coverage summary file not found" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "Running tests without coverage or coverage file was not generated." >> $GITHUB_STEP_SUMMARY
+          fi
 
       - name: Upload coverage reports
         if: always()
@@ -125,6 +133,13 @@ jobs:
         with:
           script: |
             const fs = require('fs');
+
+            // Check if coverage file exists
+            if (!fs.existsSync('coverage/coverage-summary.json')) {
+              console.log('Coverage summary file not found, skipping PR comment');
+              return;
+            }
+
             const coverage = JSON.parse(fs.readFileSync('coverage/coverage-summary.json', 'utf8'));
             const total = coverage.total;
 
