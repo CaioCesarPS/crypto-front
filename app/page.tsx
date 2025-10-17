@@ -1,103 +1,348 @@
-import Image from "next/image";
+'use client'
+
+import { useState, useEffect, useMemo, useCallback } from 'react'
+import Link from 'next/link'
+import { NavHeader } from '@/components/nav-header'
+import { AssetCard } from '@/components/asset-card'
+import { AssetCardSkeleton } from '@/components/asset-card-skeleton'
+import { ErrorState } from '@/components/error-state'
+import { SearchBar } from '@/components/search-bar'
+import {
+  FilterBar,
+  type SortOption,
+  type FilterOption,
+} from '@/components/filter-bar'
+import { Button } from '@/components/ui/button'
+import {
+  Empty,
+  EmptyHeader,
+  EmptyMedia,
+  EmptyTitle,
+  EmptyDescription,
+} from '@/components/ui/empty'
+import { Search, Loader2 } from 'lucide-react'
+import { toast } from 'sonner'
+import { useDebounce } from '@/hooks/use-debounce'
+import { useInfiniteScroll } from '@/hooks/use-infinite-scroll'
+import type { CryptoAsset, Favorite } from '@/lib/types'
 
 export default function Home() {
-  return (
-    <div className="font-sans grid grid-rows-[20px_1fr_20px] items-center justify-items-center min-h-screen p-8 pb-20 gap-16 sm:p-20">
-      <main className="flex flex-col gap-[32px] row-start-2 items-center sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={180}
-          height={38}
-          priority
-        />
-        <ol className="font-mono list-inside list-decimal text-sm/6 text-center sm:text-left">
-          <li className="mb-2 tracking-[-.01em]">
-            Get started by editing{" "}
-            <code className="bg-black/[.05] dark:bg-white/[.06] font-mono font-semibold px-1 py-0.5 rounded">
-              app/page.tsx
-            </code>
-            .
-          </li>
-          <li className="tracking-[-.01em]">
-            Save and see your changes instantly.
-          </li>
-        </ol>
+  const [assets, setAssets] = useState<CryptoAsset[]>([])
+  const [favorites, setFavorites] = useState<string[]>([])
+  const [loading, setLoading] = useState(true)
+  const [loadingMore, setLoadingMore] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const [favoriteLoading, setFavoriteLoading] = useState<string | null>(null)
 
-        <div className="flex gap-4 items-center flex-col sm:flex-row">
-          <a
-            className="rounded-full border border-solid border-transparent transition-colors flex items-center justify-center bg-foreground text-background gap-2 hover:bg-[#383838] dark:hover:bg-[#ccc] font-medium text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5 sm:w-auto"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={20}
-              height={20}
-            />
-            Deploy now
-          </a>
-          <a
-            className="rounded-full border border-solid border-black/[.08] dark:border-white/[.145] transition-colors flex items-center justify-center hover:bg-[#f2f2f2] dark:hover:bg-[#1a1a1a] hover:border-transparent font-medium text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5 w-full sm:w-auto md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Read our docs
-          </a>
+  // Pagination state
+  const [page, setPage] = useState(1)
+  const [hasMore, setHasMore] = useState(true)
+  const perPage = 20
+
+  // Search and filter state
+  const [searchTerm, setSearchTerm] = useState('')
+  const [sortBy, setSortBy] = useState<SortOption>('default')
+  const [filter, setFilter] = useState<FilterOption>('all')
+
+  // Debounced search to improve performance
+  const debouncedSearchTerm = useDebounce(searchTerm, 300)
+
+  useEffect(() => {
+    fetchInitialData()
+  }, [])
+
+  const fetchInitialData = async () => {
+    try {
+      setLoading(true)
+      setError(null)
+
+      // Fetch initial assets and favorites in parallel
+      const [assetsRes, favoritesRes] = await Promise.all([
+        fetch(`/api/assets?page=1&per_page=${perPage}`),
+        fetch('/api/favorites'),
+      ])
+
+      if (!assetsRes.ok || !favoritesRes.ok) {
+        throw new Error('Failed to fetch data')
+      }
+
+      const assetsData = await assetsRes.json()
+      const favoritesData = await favoritesRes.json()
+
+      setAssets(assetsData.assets || [])
+      setHasMore(assetsData.hasMore ?? true)
+      setFavorites(
+        favoritesData.favorites?.map((f: Favorite) => f.asset_id) || []
+      )
+    } catch (err) {
+      setError('Failed to load cryptocurrency data. Please try again.')
+      console.error(err)
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const loadMoreAssets = useCallback(async () => {
+    if (loadingMore || !hasMore) return
+
+    try {
+      setLoadingMore(true)
+      const nextPage = page + 1
+
+      const response = await fetch(
+        `/api/assets?page=${nextPage}&per_page=${perPage}`
+      )
+
+      if (!response.ok) {
+        throw new Error('Failed to fetch more assets')
+      }
+
+      const data = await response.json()
+
+      if (data.assets && data.assets.length > 0) {
+        setAssets((prev) => [...prev, ...data.assets])
+        setPage(nextPage)
+        setHasMore(data.hasMore ?? false)
+      } else {
+        setHasMore(false)
+      }
+    } catch (err) {
+      console.error('Error loading more assets:', err)
+      toast.error('Failed to load more cryptocurrencies')
+    } finally {
+      setLoadingMore(false)
+    }
+  }, [loadingMore, hasMore, page, perPage])
+
+  // Infinite scroll observer
+  const observerTarget = useInfiniteScroll({
+    onLoadMore: loadMoreAssets,
+    hasMore,
+    isLoading: loadingMore,
+  })
+
+  const toggleFavorite = async (assetId: string) => {
+    const isFavorite = favorites.includes(assetId)
+    setFavoriteLoading(assetId)
+
+    try {
+      if (isFavorite) {
+        // Remove from favorites
+        const res = await fetch(`/api/favorites?asset_id=${assetId}`, {
+          method: 'DELETE',
+        })
+
+        if (!res.ok) throw new Error('Failed to remove favorite')
+
+        setFavorites((prev) => prev.filter((id) => id !== assetId))
+        toast.success('Removed from favorites')
+      } else {
+        // Add to favorites
+        const res = await fetch('/api/favorites', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ asset_id: assetId }),
+        })
+
+        if (!res.ok) throw new Error('Failed to add favorite')
+
+        setFavorites((prev) => [...prev, assetId])
+        toast.success('Added to favorites')
+      }
+    } catch (err) {
+      toast.error('Failed to update favorites')
+      console.error(err)
+    } finally {
+      setFavoriteLoading(null)
+    }
+  }
+
+  // Filter, search, and sort assets
+  const filteredAssets = useMemo(() => {
+    let filtered = [...assets]
+
+    // Apply search filter (using debounced value for better performance)
+    if (debouncedSearchTerm) {
+      const term = debouncedSearchTerm.toLowerCase()
+      filtered = filtered.filter(
+        (asset) =>
+          asset.name.toLowerCase().includes(term) ||
+          asset.symbol.toLowerCase().includes(term)
+      )
+    }
+
+    // Apply gainers/losers filter
+    if (filter === 'gainers') {
+      filtered = filtered.filter(
+        (asset) => asset.price_change_percentage_24h >= 0
+      )
+    } else if (filter === 'losers') {
+      filtered = filtered.filter(
+        (asset) => asset.price_change_percentage_24h < 0
+      )
+    }
+
+    // Apply sorting
+    if (sortBy === 'price-asc') {
+      filtered.sort((a, b) => a.current_price - b.current_price)
+    } else if (sortBy === 'price-desc') {
+      filtered.sort((a, b) => b.current_price - a.current_price)
+    } else if (sortBy === 'change-asc') {
+      filtered.sort(
+        (a, b) => a.price_change_percentage_24h - b.price_change_percentage_24h
+      )
+    } else if (sortBy === 'change-desc') {
+      filtered.sort(
+        (a, b) => b.price_change_percentage_24h - a.price_change_percentage_24h
+      )
+    }
+    // 'default' keeps market cap order from API
+
+    return filtered
+  }, [assets, debouncedSearchTerm, filter, sortBy])
+
+  if (loading) {
+    return (
+      <>
+        <NavHeader />
+        <div className="container mx-auto px-4 py-8">
+          {/* Header Skeleton */}
+          <div className="mb-8">
+            <div className="h-10 w-64 bg-muted rounded-md animate-pulse mb-2" />
+            <div className="h-5 w-48 bg-muted rounded-md animate-pulse" />
+          </div>
+
+          {/* Skeleton Grid */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6">
+            {Array.from({ length: 10 }).map((_, i) => (
+              <AssetCardSkeleton key={i} />
+            ))}
+          </div>
         </div>
-      </main>
-      <footer className="row-start-3 flex gap-[24px] flex-wrap items-center justify-center">
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/file.svg"
-            alt="File icon"
-            width={16}
-            height={16}
+      </>
+    )
+  }
+
+  if (error) {
+    return (
+      <>
+        <NavHeader />
+        <div className="container mx-auto px-4 py-8">
+          <ErrorState
+            title="Failed to Load"
+            message={error}
+            onRetry={fetchInitialData}
+            retrying={loading}
           />
-          Learn
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/window.svg"
-            alt="Window icon"
-            width={16}
-            height={16}
+        </div>
+      </>
+    )
+  }
+
+  return (
+    <>
+      <NavHeader />
+      <div className="container mx-auto px-4 py-8">
+        {/* Header */}
+        <div className="mb-8">
+          <h1 className="text-3xl sm:text-4xl font-bold mb-2">
+            Cryptocurrency Explorer
+          </h1>
+          <p className="text-muted-foreground">
+            Top cryptocurrencies by market cap
+          </p>
+          <div className="mt-4">
+            <Link href="/favorites">
+              <Button variant="outline">
+                View Favorites ({favorites.length})
+              </Button>
+            </Link>
+          </div>
+        </div>
+
+        {/* Search and Filter */}
+        <div className="mb-6 space-y-4">
+          <SearchBar
+            value={searchTerm}
+            onChange={setSearchTerm}
+            placeholder="Search by name or symbol..."
           />
-          Examples
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/globe.svg"
-            alt="Globe icon"
-            width={16}
-            height={16}
+          <FilterBar
+            sortBy={sortBy}
+            onSortChange={setSortBy}
+            filter={filter}
+            onFilterChange={setFilter}
           />
-          Go to nextjs.org →
-        </a>
-      </footer>
-    </div>
-  );
+        </div>
+
+        {/* Assets Grid */}
+        {filteredAssets.length === 0 ? (
+          <Empty>
+            <EmptyHeader>
+              <EmptyMedia variant="icon">
+                <Search />
+              </EmptyMedia>
+              <EmptyTitle>No results found</EmptyTitle>
+              <EmptyDescription>
+                {debouncedSearchTerm
+                  ? `No cryptocurrencies match "${debouncedSearchTerm}"`
+                  : 'No cryptocurrencies match your filters'}
+              </EmptyDescription>
+            </EmptyHeader>
+          </Empty>
+        ) : (
+          <>
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6">
+              {filteredAssets.map((asset) => (
+                <AssetCard
+                  key={asset.id}
+                  asset={asset}
+                  isFavorite={favorites.includes(asset.id)}
+                  onToggleFavorite={toggleFavorite}
+                  isLoading={favoriteLoading === asset.id}
+                />
+              ))}
+            </div>
+
+            {/* Infinite Scroll Trigger */}
+            {hasMore &&
+              !debouncedSearchTerm &&
+              filter === 'all' &&
+              sortBy === 'default' && (
+                <div className="mt-8 flex flex-col items-center gap-4">
+                  {/* Invisible trigger for intersection observer */}
+                  <div
+                    ref={observerTarget}
+                    className="h-4"
+                  />
+
+                  {loadingMore && (
+                    <div className="flex items-center gap-2 text-muted-foreground">
+                      <Loader2 className="w-5 h-5 animate-spin" />
+                      <span>Loading more cryptocurrencies...</span>
+                    </div>
+                  )}
+
+                  {/* Manual load more button as fallback */}
+                  {!loadingMore && (
+                    <Button
+                      onClick={loadMoreAssets}
+                      variant="outline"
+                      disabled={loadingMore}
+                    >
+                      Load More
+                    </Button>
+                  )}
+                </div>
+              )}
+
+            {/* Show total count */}
+            <div className="mt-6 text-center text-sm text-muted-foreground">
+              Showing {filteredAssets.length} cryptocurrencies
+            </div>
+          </>
+        )}
+      </div>
+    </>
+  )
 }
