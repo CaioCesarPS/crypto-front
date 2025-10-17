@@ -1,4 +1,14 @@
 import '@testing-library/jest-dom'
+import 'whatwg-fetch'
+import { TextEncoder, TextDecoder } from 'util'
+import { ReadableStream } from 'stream/web'
+
+// Polyfill Web APIs for Next.js API routes in Node.js environment
+Object.assign(global, {
+  TextEncoder,
+  TextDecoder,
+  ReadableStream,
+})
 
 // Mock Next.js router
 jest.mock('next/navigation', () => ({

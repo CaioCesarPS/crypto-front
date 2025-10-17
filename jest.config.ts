@@ -10,7 +10,10 @@ const createJestConfig = nextJest({
 const config: Config = {
   coverageProvider: 'v8',
   testEnvironment: 'jsdom',
-  setupFilesAfterEnv: ['<rootDir>/jest.setup.ts'],
+  setupFilesAfterEnv: [
+    '<rootDir>/jest.setup.ts',
+    '<rootDir>/tests/integration/setup.ts',
+  ],
 
   // Module name mapper for absolute imports
   moduleNameMapper: {
@@ -28,6 +31,7 @@ const config: Config = {
     '!**/.next/**',
     '!**/coverage/**',
     '!**/dist/**',
+    '!components/ui/**',
   ],
 
   // Coverage thresholds
@@ -41,9 +45,11 @@ const config: Config = {
   },
 
   // Test match patterns
-  testMatch: ['**/__tests__/**/*.[jt]s?(x)', '**/?(*.)+(spec|test).[jt]s?(x)'],
-
-  // Transform configuration
+  testMatch: [
+    '**/__tests__/**/*.(test|spec).[jt]s?(x)',
+    '**/?(*.)+(spec|test).[jt]s?(x)',
+    '!**/e2e/**', // Exclude E2E tests from Jest
+  ], // Transform configuration
   testPathIgnorePatterns: ['/node_modules/', '/.next/'],
   transformIgnorePatterns: [
     '/node_modules/',
