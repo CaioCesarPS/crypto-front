@@ -1,0 +1,503 @@
+# Unified CI/CD Pipeline for CryptFront
+# Handles: Linting, Testing, Building, Docker, and Deployment
+# Single workflow file for complete automation
+
+name: CI/CD
+
+on:
+  push:
+    branches: [main, develop]
+    tags:
+      - 'v*.*.*'
+  pull_request:
+    branches: [main, develop]
+  workflow_dispatch:
+    inputs:
+      deploy_environment:
+        description: 'Environment to deploy to'
+        required: false
+        default: 'staging'
+        type: choice
+        options:
+          - production
+          - staging
+      run_e2e:
+        description: 'Run E2E tests'
+        required: false
+        default: false
+        type: boolean
+  schedule:
+    # Run E2E tests daily at 2 AM UTC
+    - cron: '0 2 * * *'
+    # Run quality analysis weekly on Sundays at 3 AM UTC
+    - cron: '0 3 * * 0'
+
+# Cancel in-progress runs for the same workflow
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  NODE_VERSION: '20'
+  NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
+  NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY }}
+  REGISTRY: ghcr.io
+  IMAGE_NAME: ${{ github.repository }}
+
+jobs:
+  # ============================================
+  # PHASE 1: Code Quality & Validation
+  # ============================================
+
+  quality:
+    name: Code Quality
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Lint code
+        run: npm run lint
+
+      - name: Type check
+        run: npm run type-check
+
+      - name: Check formatting
+        run: |
+          if [ -f .prettierrc ]; then
+            npx prettier --check "**/*.{ts,tsx,js,jsx,json,css,md}"
+          else
+            echo "Prettier not configured, skipping"
+          fi
+        continue-on-error: true
+
+  # ============================================
+  # PHASE 2: Unit Tests & Coverage
+  # ============================================
+
+  test:
+    name: Unit Tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    needs: quality
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run unit tests with coverage
+        run: npm run test:unit
+
+      - name: Generate coverage summary
+        run: |
+          echo "## 📊 Test Coverage Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo '```json' >> $GITHUB_STEP_SUMMARY
+          cat coverage/coverage-summary.json >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+
+      - name: Upload coverage reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-report
+          path: |
+            coverage/
+            !coverage/tmp
+          retention-days: 7
+
+      - name: Comment coverage on PR
+        if: github.event_name == 'pull_request'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            const coverage = JSON.parse(fs.readFileSync('coverage/coverage-summary.json', 'utf8'));
+            const total = coverage.total;
+
+            const comment = `## 📊 Test Coverage Report
+
+            | Category | Coverage | Statements | Branches | Functions | Lines |
+            |----------|----------|------------|----------|-----------|-------|
+            | **Total** | **${total.lines.pct}%** | ${total.statements.pct}% | ${total.branches.pct}% | ${total.functions.pct}% | ${total.lines.pct}% |
+
+            <details>
+            <summary>View detailed coverage</summary>
+
+            Download the full coverage report from the workflow artifacts.
+            </details>`;
+
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: comment
+            });
+
+  # ============================================
+  # PHASE 3: Build & Security
+  # ============================================
+
+  build:
+    name: Build & Security Check
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    needs: test
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build application
+        run: npm run build
+
+      - name: Security audit
+        run: npm audit --audit-level=high
+        continue-on-error: true
+
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-output
+          path: .next/
+          retention-days: 7
+
+  # ============================================
+  # PHASE 4: E2E Tests (Conditional)
+  # ============================================
+
+  e2e:
+    name: E2E Tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    needs: build
+    # Run on: schedule, manual trigger with e2e enabled, or pull requests
+    if: |
+      github.event_name == 'schedule' ||
+      (github.event_name == 'workflow_dispatch' && github.event.inputs.run_e2e == 'true') ||
+      github.event_name == 'pull_request'
+
+    strategy:
+      fail-fast: false
+      matrix:
+        browser: [chromium]
+        # Add more browsers for scheduled runs
+        include:
+          - browser: firefox
+            only-scheduled: true
+          - browser: webkit
+            only-scheduled: true
+
+    steps:
+      - name: Skip non-chromium on PR
+        if: |
+          github.event_name == 'pull_request' && 
+          matrix.only-scheduled == true
+        run: echo "Skipping ${{ matrix.browser }} on PR" && exit 0
+
+      - name: Checkout code
+        if: |
+          github.event_name != 'pull_request' ||
+          matrix.only-scheduled != true
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        if: |
+          github.event_name != 'pull_request' ||
+          matrix.only-scheduled != true
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+
+      - name: Install dependencies
+        if: |
+          github.event_name != 'pull_request' ||
+          matrix.only-scheduled != true
+        run: npm ci
+
+      - name: Install Playwright
+        if: |
+          github.event_name != 'pull_request' ||
+          matrix.only-scheduled != true
+        run: npx playwright install ${{ matrix.browser }} --with-deps
+
+      - name: Download build artifacts
+        if: |
+          github.event_name != 'pull_request' ||
+          matrix.only-scheduled != true
+        uses: actions/download-artifact@v4
+        with:
+          name: build-output
+          path: .next/
+
+      - name: Run E2E tests
+        if: |
+          github.event_name != 'pull_request' ||
+          matrix.only-scheduled != true
+        run: npm run test:e2e -- --project=${{ matrix.browser }}
+        env:
+          CI: true
+
+      - name: Upload test results
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report-${{ matrix.browser }}
+          path: playwright-report/
+          retention-days: 7
+
+  # ============================================
+  # PHASE 5: Docker Build (main branch only)
+  # ============================================
+
+  docker:
+    name: Docker Build & Push
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    needs: [build, test]
+    if: |
+      github.event_name == 'push' && 
+      (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/v'))
+    permissions:
+      contents: read
+      packages: write
+      security-events: write
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Extract metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+          tags: |
+            type=ref,event=branch
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
+            type=sha,prefix={{branch}}-
+            type=raw,value=latest,enable={{is_default_branch}}
+
+      - name: Build and push Docker image
+        id: build
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: ./Dockerfile
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          build-args: |
+            NEXT_PUBLIC_SUPABASE_URL=${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
+            NEXT_PUBLIC_SUPABASE_ANON_KEY=${{ secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+          platforms: linux/amd64,linux/arm64
+
+      - name: Run Trivy security scan
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest
+          format: 'sarif'
+          output: 'trivy-results.sarif'
+          severity: 'CRITICAL,HIGH'
+
+      - name: Upload Trivy results to GitHub Security
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: 'trivy-results.sarif'
+
+  # ============================================
+  # PHASE 6: Deploy (conditional)
+  # ============================================
+
+  deploy:
+    name: Deploy to ${{ github.event.inputs.deploy_environment || 'production' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    needs: [docker]
+    if: |
+      (github.event_name == 'push' && github.ref == 'refs/heads/main') ||
+      github.event_name == 'workflow_dispatch'
+    environment:
+      name: ${{ github.event.inputs.deploy_environment || 'production' }}
+      url: ${{ steps.deploy.outputs.url }}
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+
+      - name: Install Vercel CLI
+        run: npm install --global vercel@latest
+
+      - name: Pull Vercel Environment Information
+        run: vercel pull --yes --environment=${{ github.event.inputs.deploy_environment || 'production' }} --token=${{ secrets.VERCEL_TOKEN }}
+
+      - name: Build Project Artifacts
+        run: vercel build ${{ github.event.inputs.deploy_environment == 'production' && '--prod' || '' }} --token=${{ secrets.VERCEL_TOKEN }}
+
+      - name: Deploy Project Artifacts to Vercel
+        id: deploy
+        run: |
+          url=$(vercel deploy --prebuilt ${{ github.event.inputs.deploy_environment == 'production' && '--prod' || '' }} --token=${{ secrets.VERCEL_TOKEN }})
+          echo "url=$url" >> $GITHUB_OUTPUT
+          echo "Deployed to: $url"
+
+  # ============================================
+  # PHASE 7: Smoke Tests (after deployment)
+  # ============================================
+
+  smoke-tests:
+    name: Smoke Tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    needs: deploy
+    if: |
+      (github.event_name == 'push' && github.ref == 'refs/heads/main') ||
+      github.event_name == 'workflow_dispatch'
+
+    steps:
+      - name: Wait for deployment to stabilize
+        run: sleep 30
+
+      - name: Check health endpoint
+        run: |
+          url="${{ needs.deploy.outputs.url || secrets.PRODUCTION_URL }}"
+          echo "Checking health at: $url/api/health"
+          response=$(curl -s -o /dev/null -w "%{http_code}" "$url/api/health")
+          if [ $response -eq 200 ]; then
+            echo "✅ Health check passed"
+          else
+            echo "❌ Health check failed with status: $response"
+            exit 1
+          fi
+
+      - name: Check homepage
+        run: |
+          url="${{ needs.deploy.outputs.url || secrets.PRODUCTION_URL }}"
+          echo "Checking homepage at: $url"
+          response=$(curl -s -o /dev/null -w "%{http_code}" "$url")
+          if [ $response -eq 200 ]; then
+            echo "✅ Homepage check passed"
+          else
+            echo "❌ Homepage check failed with status: $response"
+            exit 1
+          fi
+
+  # ============================================
+  # PHASE 8: Quality Metrics (weekly)
+  # ============================================
+
+  quality-metrics:
+    name: Quality Metrics
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    if: github.event.schedule == '0 3 * * 0' # Weekly schedule
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Check for outdated dependencies
+        run: npm outdated || true
+
+      - name: Generate dependency tree
+        run: npm list --depth=0 || true
+
+      - name: Count lines of code
+        run: |
+          echo "📊 Lines of Code Analysis" >> $GITHUB_STEP_SUMMARY
+          echo "=========================" >> $GITHUB_STEP_SUMMARY
+          find app components hooks lib -name "*.ts" -o -name "*.tsx" | xargs wc -l | tail -1 >> $GITHUB_STEP_SUMMARY
+
+      - name: Count test files
+        run: |
+          echo "📊 Test Coverage Analysis" >> $GITHUB_STEP_SUMMARY
+          echo "=========================" >> $GITHUB_STEP_SUMMARY
+          echo "Test files:" >> $GITHUB_STEP_SUMMARY
+          find tests -name "*.test.ts" -o -name "*.test.tsx" | wc -l >> $GITHUB_STEP_SUMMARY
+
+      - name: Check bundle size
+        run: |
+          npm run build
+          echo "📦 Build Size Analysis" >> $GITHUB_STEP_SUMMARY
+          echo "=====================" >> $GITHUB_STEP_SUMMARY
+          du -sh .next >> $GITHUB_STEP_SUMMARY
+          du -sh .next/static >> $GITHUB_STEP_SUMMARY
+
+  # ============================================
+  # FINAL: Status Check (Required for branch protection)
+  # ============================================
+
+  ci-success:
+    name: CI Success
+    runs-on: ubuntu-latest
+    needs: [quality, test, build]
+    if: always()
+
+    steps:
+      - name: Check all jobs status
+        run: |
+          if [ "${{ needs.quality.result }}" != "success" ] || \
+             [ "${{ needs.test.result }}" != "success" ] || \
+             [ "${{ needs.build.result }}" != "success" ]; then
+            echo "❌ One or more required jobs failed"
+            exit 1
+          fi
+          echo "✅ All required jobs passed"
