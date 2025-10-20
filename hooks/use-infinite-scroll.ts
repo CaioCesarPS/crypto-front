@@ -50,6 +50,8 @@ export function useInfiniteScroll({
   threshold = 0.1,
 }: UseInfiniteScrollOptions) {
   const observerTarget = useRef<HTMLDivElement>(null)
+  const lastLoadTime = useRef<number>(0)
+  const minLoadInterval = 500 // Minimum 500ms between loads
 
   const handleObserver = useCallback(
     (entries: IntersectionObserverEntry[]) => {
@@ -57,7 +59,14 @@ export function useInfiniteScroll({
 
       // If target is intersecting, has more data, and not loading
       if (target && target.isIntersecting && hasMore && !isLoading) {
-        onLoadMore()
+        const now = Date.now()
+        const timeSinceLastLoad = now - lastLoadTime.current
+
+        // Throttle: only load if enough time has passed since last load
+        if (timeSinceLastLoad >= minLoadInterval) {
+          lastLoadTime.current = now
+          onLoadMore()
+        }
       }
     },
     [hasMore, isLoading, onLoadMore]

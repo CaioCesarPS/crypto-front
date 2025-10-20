@@ -6,7 +6,15 @@ export function cn(...inputs: ClassValue[]) {
 }
 
 // Format price to USD currency
-export function formatPrice(price: number, compact = false): string {
+export function formatPrice(
+  price: number | null | undefined,
+  compact = false
+): string {
+  // Handle null, undefined, or non-numeric values
+  if (price === null || price === undefined || !isFinite(price)) {
+    return '$0.00'
+  }
+
   if (compact) {
     return new Intl.NumberFormat('en-US', {
       style: 'currency',
@@ -25,7 +33,18 @@ export function formatPrice(price: number, compact = false): string {
 }
 
 // Format percentage change
-export function formatPercentage(percentage: number): string {
+export function formatPercentage(
+  percentage: number | null | undefined
+): string {
+  // Handle null, undefined, or non-numeric values
+  if (
+    percentage === null ||
+    percentage === undefined ||
+    !isFinite(percentage)
+  ) {
+    return '0.00%'
+  }
+
   const sign = percentage >= 0 ? '+' : ''
   return `${sign}${percentage.toFixed(2)}%`
 }

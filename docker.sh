@@ -34,19 +34,26 @@ print_error() {
 
 # Check if .env file exists
 check_env() {
-    if [ ! -f .env ]; then
-        print_error ".env file not found!"
-        print_info "Copy .env.example to .env and configure your environment variables"
-        echo "  cp .env.example .env"
+    if [ ! -f .env.local ]; then
+        print_error ".env.local file not found!"
+        print_info "Copy .env.example to .env.local and configure your environment variables"
+        echo "  cp .env.example .env.local"
         exit 1
     fi
-    print_success ".env file found"
+    print_success ".env.local file found"
+    
+    # Load environment variables from .env.local
+    set -a
+    source .env.local
+    set +a
 }
 
 # Build production image
 build_prod() {
     print_info "Building production image..."
     check_env
+    
+    print_info "Building with Supabase URL: ${NEXT_PUBLIC_SUPABASE_URL}"
     
     docker build \
         --build-arg NEXT_PUBLIC_SUPABASE_URL="${NEXT_PUBLIC_SUPABASE_URL}" \

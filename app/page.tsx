@@ -82,42 +82,87 @@ export default function Home() {
   }
 
   const loadMoreAssets = useCallback(async () => {
-    if (loadingMore || !hasMore) return
+    if (loadingMore || !hasMore) {
+      console.log('❌ Load more cancelled:', { loadingMore, hasMore })
+      return
+    }
+
+    console.log('🔄 Starting load more...', {
+      currentPage: page,
+      nextPage: page + 1,
+    })
 
     try {
       setLoadingMore(true)
       const nextPage = page + 1
 
-      const response = await fetch(
-        `/api/assets?page=${nextPage}&per_page=${perPage}`
-      )
+      const url = `/api/assets?page=${nextPage}&per_page=${perPage}`
+      console.log('📡 Fetching:', url)
+
+      const response = await fetch(url)
+
+      console.log('📥 Response status:', response.status, response.ok)
 
       if (!response.ok) {
+        // Handle rate limiting gracefully
+        if (response.status === 429) {
+          console.warn('⚠️ Rate limited, will retry later')
+          toast.warning('Loading too fast, please wait a moment...')
+          return
+        }
+
+        const errorText = await response.text()
+        console.error('❌ Response error:', errorText)
         throw new Error('Failed to fetch more assets')
       }
 
       const data = await response.json()
 
+      // Check if response has error field (from API error handling)
+      if (data.error) {
+        console.warn('⚠️ API returned error:', data.error)
+        toast.warning('Unable to load more right now, please try again')
+        return
+      }
+
+      console.log('✅ Data received:', {
+        assetsCount: data.assets?.length,
+        hasMore: data.hasMore,
+        page: data.page,
+      })
+
       if (data.assets && data.assets.length > 0) {
-        setAssets((prev) => [...prev, ...data.assets])
+        setAssets((prev) => {
+          console.log('📦 Merging assets:', {
+            oldCount: prev.length,
+            newCount: data.assets.length,
+          })
+          return [...prev, ...data.assets]
+        })
         setPage(nextPage)
         setHasMore(data.hasMore ?? false)
+        toast.success(`Loaded ${data.assets.length} more cryptocurrencies`)
       } else {
+        console.log('⚠️ No more assets available')
         setHasMore(false)
+        toast.info('No more cryptocurrencies to load')
       }
     } catch (err) {
-      console.error('Error loading more assets:', err)
+      console.error('💥 Error loading more assets:', err)
       toast.error('Failed to load more cryptocurrencies')
     } finally {
       setLoadingMore(false)
+      console.log('✅ Load more completed')
     }
   }, [loadingMore, hasMore, page, perPage])
 
-  // Infinite scroll observer
+  // Infinite scroll observer with increased margin to prevent rapid firing
   const observerTarget = useInfiniteScroll({
     onLoadMore: loadMoreAssets,
     hasMore,
     isLoading: loadingMore,
+    rootMargin: '200px', // Load earlier but throttled
+    threshold: 0.1,
   })
 
   const toggleFavorite = async (assetId: string) => {
@@ -302,6 +347,14 @@ export default function Home() {
               filter === 'all' &&
               sortBy === 'default' && (
                 <div className="mt-8 flex flex-col items-center gap-4">
+                  {/* Debug info */}
+                  {process.env.NODE_ENV === 'development' && (
+                    <div className="text-xs text-muted-foreground">
+                      Page: {page} | Has More: {hasMore.toString()} | Loading:{' '}
+                      {loadingMore.toString()}
+                    </div>
+                  )}
+
                   {/* Invisible trigger for intersection observer */}
                   <div
                     ref={observerTarget}
@@ -318,7 +371,14 @@ export default function Home() {
                   {/* Manual load more button as fallback */}
                   {!loadingMore && (
                     <Button
-                      onClick={loadMoreAssets}
+                      onClick={() => {
+                        console.log('🖱️ Load More button clicked!', {
+                          page,
+                          hasMore,
+                          loadingMore,
+                        })
+                        loadMoreAssets()
+                      }}
                       variant="outline"
                       disabled={loadingMore}
                     >

@@ -14,6 +14,7 @@ WORKDIR /app
 
 # Copy package files
 COPY package.json package-lock.json* ./
+COPY .env.* .
 
 # Install dependencies
 RUN npm ci --only=production && \
@@ -27,6 +28,10 @@ FROM node:20-alpine AS builder
 
 WORKDIR /app
 
+# Accept build arguments for environment variables
+ARG NEXT_PUBLIC_SUPABASE_URL
+ARG NEXT_PUBLIC_SUPABASE_ANON_KEY
+
 # Copy package files
 COPY package.json package-lock.json* ./
 
@@ -36,15 +41,9 @@ RUN npm ci
 # Copy application source
 COPY . .
 
-# Copy environment variables for build (if needed)
-# Note: Build-time env vars should be prefixed with NEXT_PUBLIC_
-ARG NEXT_PUBLIC_SUPABASE_URL
-ARG NEXT_PUBLIC_SUPABASE_ANON_KEY
-
+# Set environment variables for build time
 ENV NEXT_PUBLIC_SUPABASE_URL=$NEXT_PUBLIC_SUPABASE_URL
 ENV NEXT_PUBLIC_SUPABASE_ANON_KEY=$NEXT_PUBLIC_SUPABASE_ANON_KEY
-
-# Disable Next.js telemetry during build
 ENV NEXT_TELEMETRY_DISABLED=1
 
 # Build the application

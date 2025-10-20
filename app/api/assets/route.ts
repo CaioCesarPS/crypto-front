@@ -37,11 +37,38 @@ export async function GET(request: Request) {
     // Fetch from CoinGecko
     const response = await fetch(
       `${COINGECKO_API_URL}?vs_currency=usd&order=market_cap_desc&per_page=${perPage}&page=${page}&sparkline=false`,
-      { next: { revalidate: 60 } }
+      {
+        next: { revalidate: 300 }, // 5 minutes cache
+        headers: {
+          Accept: 'application/json',
+        },
+      }
     )
 
+    // Handle rate limiting or API errors
     if (!response.ok) {
-      throw new Error('Failed to fetch crypto assets')
+      const statusCode = response.status
+
+      // If rate limited (429) or server error (5xx), return cached data if available
+      if (statusCode === 429 || statusCode >= 500) {
+        console.warn(
+          `CoinGecko API error ${statusCode}, checking for any cached data...`
+        )
+
+        // Try to find any cached page data
+        const anyCached = assetsCache.get(cacheKey)
+        if (anyCached) {
+          console.log('Returning stale cache due to API error')
+          return NextResponse.json({
+            assets: anyCached.data,
+            page,
+            perPage,
+            hasMore: anyCached.data.length === perPage,
+          })
+        }
+      }
+
+      throw new Error(`CoinGecko API returned ${statusCode}`)
     }
 
     const data: CryptoAsset[] = await response.json()

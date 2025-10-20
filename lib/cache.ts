@@ -48,5 +48,5 @@ export class ApiCache {
   }
 }
 
-// Singleton instance for assets cache
-export const assetsCache = new ApiCache(60 * 1000) // 60 seconds
+// Singleton instance for assets cache - increased to 5 minutes for rate limit protection
+export const assetsCache = new ApiCache(5 * 60 * 1000) // 5 minutes
