@@ -350,7 +350,6 @@ export default function Home() {
                   {/* Debug info */}
                   {process.env.NODE_ENV === 'development' && (
                     <div className="text-xs text-muted-foreground">
-                      Page: {page} | Has More: {hasMore.toString()} | Loading:{' '}
                       {loadingMore.toString()}
                     </div>
                   )}
@@ -372,11 +371,6 @@ export default function Home() {
                   {!loadingMore && (
                     <Button
                       onClick={() => {
-                        console.log('🖱️ Load More button clicked!', {
-                          page,
-                          hasMore,
-                          loadingMore,
-                        })
                         loadMoreAssets()
                       }}
                       variant="outline"
